@@ -67,11 +67,9 @@ birthday = function(n,k,i=1000){
   #run for i simulations
   for(sim in 1:i){
     bdays = sample(x=dates, size=n, replace=TRUE) #sample of n birthdays
-    count_bdays = data.frame(table(bdays)) #data frame of birthday counts per birthday
-    k_shared_bdays = subset(count_bdays, Freq >= k)$Freq #cases where at least k people share a birthday
+    max_bdays = max(unname(table(bdays))) #highest number of shared birthdays
     
-    #if there is at least one value in k_shared_bdays, then the number of sims_satisfied is incremented by one
-    if(length(k_shared_bdays) > 0){
+    if(max_bdays >= k){
       sims_satisfied = sims_satisfied + 1
     }
   }
@@ -110,10 +108,11 @@ ggplot() + geom_function(fun=pdf_x,n=10001) + theme_minimal() +
 # complete the function
 rx = function(n){
   # code goes here
+  return(-asin(1-2*(runif(n,0,1))))
 }
 
 # uncomment the following line of code and check it looks correct
-# hist(rx(1000))
+hist(rx(1000))
 ```
 
 ---
@@ -143,6 +142,8 @@ split(flips1)
 ```
 
 Response goes here:
+
+Use different combinations of statistics, try consecutive pair table function from class in notes, to create another function.
 
 
 
