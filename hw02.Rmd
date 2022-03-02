@@ -1,0 +1,152 @@
+
+---
+title: "STAT340 HW2: Monte Carlo & Testing"
+author: Ryan Cope
+date: 3/1/21
+output: html_document
+---
+<style>
+table{width:50%!important;margin-left:auto!important;margin-right:auto!important;}
+/*ol[style*="decimal"]>li{margin-top:40px!important;}*/
+</style>
+
+```{r setup, include=FALSE}
+# check packages installed
+if(!require(pacman)) install.packages("pacman")
+pacman::p_load(ggplot2)
+
+knitr::opts_chunk$set(tidy=FALSE,strip.white=FALSE,fig.align="center",comment=" #")
+options(width=100)
+```
+
+<br/>
+
+## Instructions
+
+Complete the exercises, update the "author" and "date" fields in the header, knit it, and submit **both the HTML and RMD** files to Canvas. Due date: **Mar 4, 2022 at 11:59pm**.
+
+---
+
+## Exercise 1 (20 points): Generalized [birthday problem](https://en.wikipedia.org/wiki/Birthday_problem)
+
+The birthday problem asks for the probability that in a group of $n$ people, at least 2 people will share the same birthday. This is easy to solve, and the solution is easily found online.
+
+We can generalize this to a more difficult problem and solve it using a Monte Carlo approach: in $n$ people, what is the probability that at least $k$ people have the same birthday?
+
+Write a function `birthday(n,k,i)` that returns a probability estimate given 3 arguments:
+
+ - $n$ is the number of people in your sample
+    - for example, if `n=50` is used, we are asking "in 50 people, what is the probability that..."
+ - $k$ is minimum number of people that must share a birthday
+    - for example if `k=4` is used, we asking "...what is the probability that at least 4 people share the same birthday?
+ - $i$ is the number of iterations to run (default 1000)
+    - for example, if `i=1000` is used, your function should run 1000 simulations
+
+**Notes**:
+
+ - You may assume there are 365 possible dates (no leap years)
+ - You may assume birthdays are uniformly distributed across the calendar
+    - this is actually not true, see [this](https://www.panix.com/~murphy/bday.html), or [this](https://fivethirtyeight.com/features/lots-of-parents-dont-want-their-kids-to-be-born-on-leap-day/)
+ - You may assume the people are sampled [i.i.d](https://en.wikipedia.org/wiki/Independent_and_identically_distributed_random_variables)
+
+**Hints**:
+
+ 1. There's no need to use actual dates in the simulation process. Numbers can represent dates and are easier to generate and manipulate in `R`. In particular, we recommend using the `sample()` function with the `x`, `size`, and `replace` arguments set appropriately. See the help page `?sample` for details.
+ 2. Given a vector of numbers, you can easily find duplicates by using the `table()` function. This will produce a named vector showing how many of each value there are. For example, running `table(c(1,3,5,5,7,9,9,9))` will show you there is one 1, one 3, two 5s, one 7, and three 9s.
+ 3. In your function, you will need to use a `for` loop to repeat the simulation `i` times. You will also need a variable outside your `for` loop to keep track of how many simulations satisfy that \# of birthdays $\geq k$.
+ 4. If your function is running correctly, then `birthday(n=23, k=2)`, `birthday(n=87, k=3)` and `birthday(n=188, k=4)` should all be approximately $50\%$.
+ 5. If your function is very slow, consider using the [`Table` function](https://rdrr.io/cran/Rfast/man/Table.html) from the Rfast package, which is 4-5 times faster than the normal `table()` function.
+
+```{r}
+# complete the function
+# note i=1000 sets the default value of i to be 1000
+birthday = function(n,k,i=1000){
+  sims_satisfied = 0
+  dates = 1:365
+  
+  #run for i simulations
+  for(sim in 1:i){
+    bdays = sample(x=dates, size=n, replace=TRUE) #sample of n birthdays
+    count_bdays = data.frame(table(bdays)) #data frame of birthday counts per birthday
+    k_shared_bdays = subset(count_bdays, Freq >= k)$Freq #cases where at least k people share a birthday
+    
+    #if there is at least one value in k_shared_bdays, then the number of sims_satisfied is incremented by one
+    if(length(k_shared_bdays) > 0){
+      sims_satisfied = sims_satisfied + 1
+    }
+  }
+  
+  #return proportion of satisfied sims given i iterations
+  return(sims_satisfied/i)
+}
+```
+
+This class currently has 162 enrolled students. What is the approximate probability that at least $4$ students have the same birthdays?
+
+```{r}
+birthday(n=162, k=4)
+```
+
+---
+
+## Exercise 2 (15 points): Simulate RV
+
+$X$ is a random variable defined between $-\frac\pi2$ and $\frac\pi2$ by the probability density function $f(x)=\frac12\cos(x)$. Note this means the cumulative distribution function is $$F(x)=\int_{-\frac\pi2}^xf(x)dx=\frac12(\sin(x)+1)$$ Write a function `rx(n)` to sample from this random variable, where `n` is the size of the sample to be drawn. Then, use your function to draw a sample of 1000 and plot a histogram of the output.
+
+**Hint:** Remember the inverse function of $\sin(x)$ is $\arcsin(x)$, which in `R` is found by using the built in function `asin()`
+
+```{r,fig.width=4,fig.height=3}
+# defining pdf of X
+pdf_x = Vectorize(function(x){
+  if(x>-pi/2 & x<pi/2){cos(x)/2} else 0
+})
+
+# showing pdf on plot
+ggplot() + geom_function(fun=pdf_x,n=10001) + theme_minimal() + 
+  xlim(c(-2.5,2.5)) + ylim(-.5,1) + labs(x='x',y='f(x)')
+```
+
+```{r}
+# complete the function
+rx = function(n){
+  # code goes here
+}
+
+# uncomment the following line of code and check it looks correct
+# hist(rx(1000))
+```
+
+---
+
+## Exercise 3 (15 points): Testing coin flips
+
+In the six sequences below, **only one** of them is actually randomly generated from a fair coin. Use a combination of everything you know (common sense, monte carlo, hypothesis testing, etc.) to identify which is actually random and explain your reasoning.
+
+(***For full points***, conduct a formal test and report a $p$-value for each sequence. You may use a combination of multiple tests to arrive at your answer. If you cannot compute a $p$-value for each sequence, you can still earn a significant amount of partial credit by carefully explaining your reasoning and response as best as you can.)
+
+```{r}
+flips1 = "HTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHTHT"
+
+flips2 = "HHHTHTTTHHTHHTHHHTTTTHTHTHHTTHTHHHTHHTHTTTHTHHHTHTTTHTHTHHTHTHTTHTHHTHTHTTTHTHHHTHTHTTHTHTHHTHTHTHHHTHTTTHTHHTHTHTHHTTTHTHHTHHTTTTHTHTHHHTHTTHTHHTHTHTTHTHHTHTHHHTHHHTHTTTHTTHTTTHTHHHTHTHTTHTHHTHHTHTTT"
+
+flips3 = "HHTHTHTTTHTHHHTHHTTTHTHHTHTTTHTHTHHTHTHTTHTHHHHHHTTTHTHTHHTHTTTHTHHTHTHTTTHTHHHTTHTTTHTHTHHHHTHTTHHTTTTTHTHHHTHTHTTTTTHHHTHHTHHTHHHTTTTHTHTHHHTHHTTTTTHTHHHTHTHTHTTTHTHHHTHTHTHTTHTHHTHTHTHTTTTHTHHHTHTH"
+
+flips4 = "HTHHHHHHHTHTTHHTTHHHTHTHTTTHHTHHHTHHTTHTTTTTTTTTHTHHTTTTTHTHTHTHHTTHTTHTTTTTHHHTHTTTHTHTHHHTHTTTTHTHTHHTTHTHTTHHTHTHHHHTHTTHHTTHTTHTTHTHHHHHHTTTTTTHHHTTHTHHHHTTTHTTHHHTTHTHHTTTHHTHHTTTHTHHTHHHTHHTTHHH"
+
+flips5 = "HHHHHHHHHHTTTTTTTTTTHHHHHHHHHHTTTTTTTTTTHHHHHHHHHHTTTTTTTTTTHHHHHHHHHHTTTTTTTTTTHHHHHHHHHHTTTTTTTTTTHHHHHHHHHHTTTTTTTTTTHHHHHHHHHHTTTTTTTTTTHHHHHHHHHHTTTTTTTTTTHHHHHHHHHHTTTTTTTTTTHHHHHHHHHHTTTTTTTTTT"
+
+flips6 = "TTHTTTHTTTTTTTHTHTHTHTTHTTHTHHTHHTTTHHTHTTTHTHHTHHHTHTTHHTHHTTHTHTTTTHTHTTTHHTTTTTTTTHTHHTTHTTTTTTHTHTHTHTTTHTTHHTTHTTTHHTTTHTTHTTTTHTTTTHHTTTHTHTHHHTTTTTTHTHHTTTTTTTTTTTTHHHTTTHHHTTTHTTTHTHTTHTTTTTHT"
+
+# you can use the function below to split the above sequences in vectors of flips
+split = function(str) strsplit(str, split="")[[1]]
+split(flips1)
+```
+
+Response goes here:
+
+
+
+
+
+
+
