@@ -143,11 +143,163 @@ split(flips1)
 
 Response goes here:
 
-Use different combinations of statistics, try consecutive pair table function from class in notes, to create another function.
+Packages
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+Longest Run Function
+```{r}
+longestRun = function(flips){
+  # the first flip is always a run of length 1.
+  MaxRunSoFar = 1
+  currentRun = 1
+  
+  for(i in 2:length(flips)){ # for every flip
+    # if it is equal to the last flip
+    if(flips[i]==flips[i-1]){
+      # then increase the length of the currentRun
+      currentRun = currentRun + 1
+      # and if the run is larger than the maxRunSoFar, redefine that.
+      if(currentRun>MaxRunSoFar) MaxRunSoFar = currentRun
+    }
+    # otherwise, 
+    if(flips[i]!=flips[i-1]){
+      # set the current run back to 1
+      currentRun=1
+  }
+  }
+  return(MaxRunSoFar)
+}
+```
+
+P-value function using 1000, 200 coin flip simulations
+```{r}
+p_val_run = function(seq,trials){
+  
+  simulate_S = function(){
+    S = sample(c("H","T"), 200,replace=T) %>% longestRun()
+    return(S)
+  }
+
+  r = trials
+  monte_carlo = data.frame(replicate = 1:r, 
+                          S = rep(NA,r), 
+                           S_in_A = rep(NA, r)) 
+
+  for(i in 1:r){
+    monte_carlo$S[i] = simulate_S()
+  }
+  
+  longest_run = longestRun(seq)
+
+  check_if_S_in_A = function(S){
+    return(S <= longest_run)
+  }
+
+  for(i in 1:r){
+   monte_carlo$S_in_A[i] = check_if_S_in_A(monte_carlo$S[i])
+ 
+  }
+
+  monte_carlo = as_tibble(monte_carlo)
+  p_value = monte_carlo %>% summarise(mean(S_in_A))
+  return(p_value)
+}
+
+```
+
+Using the MC simulation method for longest run defined above, we are able to reject the null hypothesis that each coin flip is independent for flips1, as it has a p_value of approximately 0, and conclude with high confidence that flips1 was is not randomly generated from a fair coin.
+```{r}
+p_val_run(split(flips1),1000)
+```
+We are also able to reject the null hypothesis for flips2 by the same method, as it also has a p_value of approximately 0, and conclude with high confidence that flips2 was is not randomly generated from a fair coin.
+```{r}
+p_val_run(split(flips2),1000)
+```
+For flips6, we see that it has a value of 70 for "H" and 130 for "T".
+```{r}
+table(split(flips6))
+```
+This seems like an unusual number for each, so we will test to see how likely those values are assuming a binomial distribution with a probability of 0.5. The null hypothesis for this is that each coin flip is independent, and we will be checking to see how likely it is that there are less than 70 "H" in 1000 trials of 200 binomial coin flip simulations. Here is a histogram of the number of "H" in those 1000 simulations.
+```{r}
+simulate_H = function(){
+  counts = table(sample(c("H","T"), 200,replace=T))
+  return(counts["H"] %>% unname())
+}
+
+r = 1000
+H_simulations = data.frame(replicate = 1:r, 
+                           H = rep(NA,r), 
+                           lte_70_H = rep(NA, r)) 
+
+for(i in 1:r){
+  H_simulations$H[i] = simulate_H()
+}
+hist(H_simulations$H)
+```
+Using a similar process as above, we check how many of the 1000 simulations have less than or equal to 70 "H", and find a p_value of approximately 0, so we can reject the null hypothesis and conclude with high confidence that flips6 was is not randomly generated from a fair coin.
+```{r}
+check_if_H_lte_70 = function(H){
+    return(H  <= 70)
+}
+
+for(i in 1:r){
+  H_simulations$lte_70_H = check_if_H_lte_70(H_simulations$H)
+}
+
+H_simulations = as_tibble(H_simulations)
+p_value = H_simulations %>% summarise(mean(lte_70_H))
+p_value
+```
+The code below is to test flips5 for the odds of getting the same result given an initial result, ie an H after an H. The odds ratio is defined as R = HH/HT / TH/TT, and flips5 has an R value of 90, where an R value greater than or less than one indicates correlation between the pairs in the odds ratio. Using a function called p_val_ratios, we can simulate what the R values would be for 1000 randomly generated trials of 200 fair coins. Then by computing the mean of how many of these simulations have R values less than or equal to 90, we are given a p-value of approximately 0. We may then conclude with high confidence that there is a higher chance to get the same flip result given an intial result, meaning that these coin flips are likely not random.
+```{r}
+# install the runner package if necessary
+if(!"runner" %in% rownames(installed.packages())) install.packages("runner")
+
+# define function for tabulating consecutive pairs
+tableOfPairs = function(vec){
+  return(table(runner::runner(vec,k=2,f=paste,collapse="")[-1]))
+}
+
+ratioFromTable = function(tb){ #odds of getting heads if you previously got heads vs odds of getting heads if you previously got tails
+  return(setNames((tb["HH"]/tb["HT"])/(tb["TH"]/tb["TT"]),"R"))
+}
+
+simulate_R = function(){
+  S = sample(c("H","T"), 200,replace=T)
+  table = tableOfPairs(S)
+  return(ratioFromTable(table))
+}
+  
+p_val_ratios = function(trials,ratio){
+  r = trials
+  monte_carlo = data.frame(replicate = 1:r, 
+                          R = rep(NA,r), 
+                          R_in_A = rep(NA, r)) 
+
+  for(i in 1:r){
+    monte_carlo$R[i] = simulate_R()
+  }
+  
+  check_if_R_in_A = function(S){
+    return(S >= ratio)
+  }
+
+  for(i in 1:r){
+   monte_carlo$R_in_A[i] = check_if_R_in_A(monte_carlo$R[i])
+ 
+  }
+  monte_carlo = as_tibble(monte_carlo)
+  p_value = monte_carlo %>% summarise(mean(R_in_A))
+  return(p_value)
+}
 
 
-
-
-
+flips5_ratio = ratioFromTable(tableOfPairs(split(flips5)))
+mc_ratios = p_val_ratios(1000,flips5_ratio)
+mc_ratios
+```
 
 
